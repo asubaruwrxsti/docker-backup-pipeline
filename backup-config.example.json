@@ -1,0 +1,13 @@
+{
+  "remote": "s3:my-backup-bucket/docker-backups",
+  "remote_prefix": "homeserver",
+  "docker_volumes": ["app_data", "db_data", "redis_data"],
+  "extra_paths": ["/srv/docker/compose", "/srv/docker/env"],
+  "interval_minutes": 1440,
+  "retention_days": 14,
+  "work_dir": "./backups",
+  "compression_level": 6,
+  "keep_archives_local": false,
+  "rclone_bin": "rclone",
+  "docker_bin": "docker"
+}
