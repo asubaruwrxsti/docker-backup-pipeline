@@ -138,6 +138,32 @@ def docker_volume_mountpoint(docker_bin: str, volume_name: str) -> Path:
     return path
 
 
+def docker_volumes_in_use(docker_bin: str) -> list[str]:
+    containers = run_cmd([docker_bin, "ps", "-q", "--no-trunc"]).stdout.splitlines()
+    container_ids = [container_id.strip() for container_id in containers if container_id.strip()]
+    if not container_ids:
+        return []
+
+    inspect = run_cmd([
+        docker_bin,
+        "inspect",
+        *container_ids,
+        "--format",
+        "{{range .Mounts}}{{if eq .Type \"volume\"}}{{println .Name}}{{end}}{{end}}",
+    ]).stdout.splitlines()
+    return sorted({name.strip() for name in inspect if name.strip()})
+
+
+def resolve_docker_volumes(docker_bin: str, configured_volumes: Iterable[str]) -> list[str]:
+    values = [value.strip() for value in configured_volumes if value.strip()]
+    if "*" not in values:
+        return list(dict.fromkeys(values))
+
+    discovered = docker_volumes_in_use(docker_bin)
+    explicit = [value for value in values if value != "*"]
+    return sorted(set(explicit).union(discovered))
+
+
 def timestamp() -> str:
     return dt.datetime.now(dt.timezone.utc).strftime("%Y%m%dT%H%M%SZ")
 
@@ -161,7 +187,7 @@ class ArchiveSpec:
 
 def build_archive_specs(cfg: Config) -> list[ArchiveSpec]:
     specs: list[ArchiveSpec] = []
-    for volume_name in cfg.docker_volumes:
+    for volume_name in resolve_docker_volumes(cfg.docker_bin, cfg.docker_volumes):
         mountpoint = docker_volume_mountpoint(cfg.docker_bin, volume_name)
         specs.append(ArchiveSpec(label=f"volume:{volume_name}", source=mountpoint, arcname=volume_name))
     for path_str in cfg.extra_paths:
